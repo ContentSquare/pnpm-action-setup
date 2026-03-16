@@ -27,7 +27,7 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
     return npmExitCode
   }
 
-  const bootstrapPnpm = path.join(bootstrapDir, 'node_modules', '.bin', 'pnpm')
+  const bootstrapPnpm = path.join(bootstrapDir, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
 
   // Step 2: Use bootstrap pnpm to install the target version (verified via project's pnpm-lock.yaml)
   await rm(dest, { recursive: true, force: true })
@@ -47,8 +47,8 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
 
   // prepare target pnpm
   const target = await readTarget({ version, packageJsonFile, standalone })
-  const installArgs = ['install', target, '--no-lockfile']
-  const exitCode = await runCommand(bootstrapPnpm, installArgs, { cwd: dest })
+  const installArgs = [bootstrapPnpm, 'install', target, '--no-lockfile']
+  const exitCode = await runCommand(process.execPath, installArgs, { cwd: dest })
   if (exitCode === 0) {
     const pnpmHome = path.join(dest, 'node_modules/.bin')
     addPath(pnpmHome)
