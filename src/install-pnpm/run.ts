@@ -3,21 +3,40 @@ import { spawn } from 'child_process'
 import { rm, writeFile, mkdir, copyFile } from 'fs/promises'
 import { readFileSync } from 'fs'
 import path from 'path'
-import { execPath } from 'process'
 import util from 'util'
 import { Inputs } from '../inputs'
 import { parse as parseYaml } from 'yaml'
+import pnpmLock from './bootstrap/pnpm-lock.json'
+import exeLock from './bootstrap/exe-lock.json'
+
+const BOOTSTRAP_PNPM_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
+const BOOTSTRAP_EXE_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { '@pnpm/exe': exeLock.packages['node_modules/@pnpm/exe'].version } })
 
 export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   const { version, dest, packageJsonFile, standalone } = inputs
   const { GITHUB_WORKSPACE } = process.env
 
-  // prepare self install
+  // Step 1: Install bootstrap pnpm via npm (integrity verified by committed lockfile)
+  const bootstrapDir = path.join(dest, '..', '.pnpm-bootstrap')
+  await rm(bootstrapDir, { recursive: true, force: true })
+  await mkdir(bootstrapDir, { recursive: true })
+
+  const lockfile = standalone ? exeLock : pnpmLock
+  const packageJson = standalone ? BOOTSTRAP_EXE_PACKAGE_JSON : BOOTSTRAP_PNPM_PACKAGE_JSON
+  await writeFile(path.join(bootstrapDir, 'package.json'), packageJson)
+  await writeFile(path.join(bootstrapDir, 'package-lock.json'), JSON.stringify(lockfile))
+
+  const npmExitCode = await runCommand('npm', ['ci', '--ignore-scripts'], { cwd: bootstrapDir })
+  if (npmExitCode !== 0) {
+    return npmExitCode
+  }
+
+  const bootstrapPnpm = path.join(bootstrapDir, 'node_modules', '.bin', 'pnpm')
+
+  // Step 2: Use bootstrap pnpm to install the target version (verified via project's pnpm-lock.yaml)
   await rm(dest, { recursive: true, force: true })
-  // create dest directory after removal
   await mkdir(dest, { recursive: true })
   const pkgJson = path.join(dest, 'package.json')
-  // we have ensured the dest directory exists, we can write the file directly
   await writeFile(pkgJson, JSON.stringify({ private: true }))
 
   // copy .npmrc if it exists to install from custom registry
@@ -32,21 +51,33 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
 
   // prepare target pnpm
   const target = await readTarget({ version, packageJsonFile, standalone })
-  const cp = spawn(execPath, [path.join(__dirname, 'pnpm.cjs'), 'install', target, '--no-lockfile'], {
-    cwd: dest,
-    stdio: ['pipe', 'inherit', 'inherit'],
-  })
-
-  const exitCode = await new Promise<number>((resolve, reject) => {
-    cp.on('error', reject)
-    cp.on('close', resolve)
-  })
+  const installArgs = ['install', target]
+  if (GITHUB_WORKSPACE) {
+    installArgs.push('--lockfile-dir', GITHUB_WORKSPACE)
+  } else {
+    installArgs.push('--no-lockfile')
+  }
+  const exitCode = await runCommand(bootstrapPnpm, installArgs, { cwd: dest })
   if (exitCode === 0) {
     const pnpmHome = path.join(dest, 'node_modules/.bin')
     addPath(pnpmHome)
     exportVariable('PNPM_HOME', pnpmHome)
+
+    // Clean up bootstrap directory
+    await rm(bootstrapDir, { recursive: true, force: true }).catch(() => {})
   }
   return exitCode
+}
+
+function runCommand(cmd: string, args: string[], opts: { cwd: string }): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const cp = spawn(cmd, args, {
+      cwd: opts.cwd,
+      stdio: ['pipe', 'inherit', 'inherit'],
+    })
+    cp.on('error', reject)
+    cp.on('close', resolve)
+  })
 }
 
 async function readTarget(opts: {
