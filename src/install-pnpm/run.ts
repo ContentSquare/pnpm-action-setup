@@ -7,20 +7,24 @@ import util from 'util'
 import { Inputs } from '../inputs'
 import { parse as parseYaml } from 'yaml'
 import pnpmLock from './bootstrap/pnpm-lock.json'
+import exeLock from './bootstrap/exe-lock.json'
 
-const BOOTSTRAP_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
+const BOOTSTRAP_PNPM_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
+const BOOTSTRAP_EXE_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { '@pnpm/exe': exeLock.packages['node_modules/@pnpm/exe'].version } })
 
 export async function runSelfInstaller(inputs: Inputs): Promise<number> {
-  const { version, dest, packageJsonFile } = inputs
+  const { version, dest, packageJsonFile, standalone } = inputs
 
   // Install bootstrap pnpm via npm (integrity verified by committed lockfile)
   await rm(dest, { recursive: true, force: true })
   await mkdir(dest, { recursive: true })
 
-  await writeFile(path.join(dest, 'package.json'), BOOTSTRAP_PACKAGE_JSON)
-  await writeFile(path.join(dest, 'package-lock.json'), JSON.stringify(pnpmLock))
+  const lockfile = standalone ? exeLock : pnpmLock
+  const packageJson = standalone ? BOOTSTRAP_EXE_PACKAGE_JSON : BOOTSTRAP_PNPM_PACKAGE_JSON
+  await writeFile(path.join(dest, 'package.json'), packageJson)
+  await writeFile(path.join(dest, 'package-lock.json'), JSON.stringify(lockfile))
 
-  const npmExitCode = await runCommand('npm', ['ci', '--ignore-scripts'], { cwd: dest })
+  const npmExitCode = await runCommand('npm', ['ci'], { cwd: dest })
   if (npmExitCode !== 0) {
     return npmExitCode
   }
@@ -29,14 +33,17 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   addPath(pnpmHome)
   exportVariable('PNPM_HOME', pnpmHome)
 
-  const bootstrapPnpm = path.join(dest, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
+  const bootstrapPnpm = standalone
+    ? path.join(dest, 'node_modules', '@pnpm', 'exe', 'pnpm')
+    : path.join(dest, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
 
   // Determine the target version
   const targetVersion = readTargetVersion({ version, packageJsonFile })
 
   if (targetVersion) {
-    // Explicit version specified (via action input or packageManager field)
-    const exitCode = await runCommand(process.execPath, [bootstrapPnpm, 'self-update', targetVersion], { cwd: dest })
+    const cmd = standalone ? bootstrapPnpm : process.execPath
+    const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
+    const exitCode = await runCommand(cmd, args, { cwd: dest })
     if (exitCode !== 0) {
       return exitCode
     }

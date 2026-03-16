@@ -1,0 +1,147 @@
+{
+  "name": "bootstrap-exe",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "dependencies": {
+        "@pnpm/exe": "10.32.1"
+      }
+    },
+    "node_modules/@pnpm/exe": {
+      "version": "10.32.1",
+      "resolved": "https://registry.npmjs.org/@pnpm/exe/-/exe-10.32.1.tgz",
+      "integrity": "sha512-baEtwHeZwmZAdBuuDDL6tbdGg5KpxhPxr3QFfYTGXvY6ws+Z1bN0mQ7ZjcaXBSC1HuLpVXnZ6NsBiaZ2DMv4vg==",
+      "hasInstallScript": true,
+      "license": "MIT",
+      "bin": {
+        "pnpm": "pnpm"
+      },
+      "funding": {
+        "url": "https://opencollective.com/pnpm"
+      },
+      "optionalDependencies": {
+        "@pnpm/linux-arm64": "10.32.1",
+        "@pnpm/linux-x64": "10.32.1",
+        "@pnpm/macos-arm64": "10.32.1",
+        "@pnpm/macos-x64": "10.32.1",
+        "@pnpm/win-arm64": "10.32.1",
+        "@pnpm/win-x64": "10.32.1"
+      }
+    },
+    "node_modules/@pnpm/linux-arm64": {
+      "version": "10.32.1",
+      "resolved": "https://registry.npmjs.org/@pnpm/linux-arm64/-/linux-arm64-10.32.1.tgz",
+      "integrity": "sha512-6uB0B+XvunQwHGzIMk2JCkl4Ur6BtM4XbJSwB/mgpWmXDoX/KTJmgx2lodcTjgJSGSySCHfIVuTR9sj/F2D4EA==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "bin": {
+        "pnpm": "pnpm"
+      },
+      "funding": {
+        "url": "https://opencollective.com/pnpm"
+      }
+    },
+    "node_modules/@pnpm/linux-x64": {
+      "version": "10.32.1",
+      "resolved": "https://registry.npmjs.org/@pnpm/linux-x64/-/linux-x64-10.32.1.tgz",
+      "integrity": "sha512-AM2tv23Fg7h+nV+adqA/SkZKUysSIEetHfBwYFl8ArgdgkqbGoQy0rAOdKYQBb920CqfexXfI8OA8kPCzRxYng==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "bin": {
+        "pnpm": "pnpm"
+      },
+      "funding": {
+        "url": "https://opencollective.com/pnpm"
+      }
+    },
+    "node_modules/@pnpm/macos-arm64": {
+      "version": "10.32.1",
+      "resolved": "https://registry.npmjs.org/@pnpm/macos-arm64/-/macos-arm64-10.32.1.tgz",
+      "integrity": "sha512-Zr4JkhRbtGVsYgbuGZO0dq/6FPOn072Pdo0ubmqWtc14cUATKgAJD7efG03yqr3MLgtwFHgdtUzZ1WsaYAtUTA==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "bin": {
+        "pnpm": "pnpm"
+      },
+      "funding": {
+        "url": "https://opencollective.com/pnpm"
+      }
+    },
+    "node_modules/@pnpm/macos-x64": {
+      "version": "10.32.1",
+      "resolved": "https://registry.npmjs.org/@pnpm/macos-x64/-/macos-x64-10.32.1.tgz",
+      "integrity": "sha512-Yk6q3oFDu//OniXJxfTSHo+aew1LX81FcbzJAtEkcCeTQ0SLbQT6J3QiOMNikp8n8IjNhsy+bn2bdkUxaw+akA==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "bin": {
+        "pnpm": "pnpm"
+      },
+      "funding": {
+        "url": "https://opencollective.com/pnpm"
+      }
+    },
+    "node_modules/@pnpm/win-arm64": {
+      "version": "10.32.1",
+      "resolved": "https://registry.npmjs.org/@pnpm/win-arm64/-/win-arm64-10.32.1.tgz",
+      "integrity": "sha512-P8rsP5IUetpYjr2iwggoswL2qUukYrJoToXWuMyo8immn58CsYxaXsHVQ1Oq1R3XMfmGGWTXLsiJuQ7H991MRg==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "bin": {
+        "pnpm": "pnpm.exe"
+      },
+      "funding": {
+        "url": "https://opencollective.com/pnpm"
+      }
+    },
+    "node_modules/@pnpm/win-x64": {
+      "version": "10.32.1",
+      "resolved": "https://registry.npmjs.org/@pnpm/win-x64/-/win-x64-10.32.1.tgz",
+      "integrity": "sha512-i24GwbtBO8ojrhp8WWimX7NgZs0UKH1171oRt6qcRL+a+FxE0Eggv2y0KP7ZI7F3+LZMarwr3tnYsZryfciUOg==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "bin": {
+        "pnpm": "pnpm.exe"
+      },
+      "funding": {
+        "url": "https://opencollective.com/pnpm"
+      }
+    }
+  }
+}

@@ -73,6 +73,41 @@ jobs:
       - name: 'Test: version'
         run: pnpm --version
 
+  test_standalone:
+    name: Test with standalone
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Run the action
+        uses: ./
+        with:
+          version: 9.15.0
+          standalone: true
+
+      - name: 'Test: which'
+        run: which pnpm
+
+      - name: 'Test: version'
+        run: pnpm --version
+
+      - name: 'Test: install in a fresh project'
+        run: |
+          mkdir /tmp/test-standalone
+          cd /tmp/test-standalone
+          pnpm init
+          pnpm add is-odd
+        shell: bash
+
   test_run_install:
     name: 'Test with run_install (${{ matrix.run_install.name }}, ${{ matrix.os }})'
 
