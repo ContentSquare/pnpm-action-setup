@@ -7,10 +7,8 @@ import util from 'util'
 import { Inputs } from '../inputs'
 import { parse as parseYaml } from 'yaml'
 import pnpmLock from './bootstrap/pnpm-lock.json'
-import exeLock from './bootstrap/exe-lock.json'
 
-const BOOTSTRAP_PNPM_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
-const BOOTSTRAP_EXE_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { '@pnpm/exe': exeLock.packages['node_modules/@pnpm/exe'].version } })
+const BOOTSTRAP_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
 
 export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   const { version, dest, packageJsonFile, standalone } = inputs
@@ -21,10 +19,8 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   await rm(bootstrapDir, { recursive: true, force: true })
   await mkdir(bootstrapDir, { recursive: true })
 
-  const lockfile = standalone ? exeLock : pnpmLock
-  const packageJson = standalone ? BOOTSTRAP_EXE_PACKAGE_JSON : BOOTSTRAP_PNPM_PACKAGE_JSON
-  await writeFile(path.join(bootstrapDir, 'package.json'), packageJson)
-  await writeFile(path.join(bootstrapDir, 'package-lock.json'), JSON.stringify(lockfile))
+  await writeFile(path.join(bootstrapDir, 'package.json'), BOOTSTRAP_PACKAGE_JSON)
+  await writeFile(path.join(bootstrapDir, 'package-lock.json'), JSON.stringify(pnpmLock))
 
   const npmExitCode = await runCommand('npm', ['ci', '--ignore-scripts'], { cwd: bootstrapDir })
   if (npmExitCode !== 0) {
