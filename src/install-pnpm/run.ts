@@ -1,6 +1,6 @@
 import { addPath, exportVariable } from '@actions/core'
 import { spawn } from 'child_process'
-import { rm, writeFile, mkdir, copyFile } from 'fs/promises'
+import { rm, writeFile, mkdir } from 'fs/promises'
 import { readFileSync } from 'fs'
 import path from 'path'
 import util from 'util'
@@ -11,76 +11,48 @@ import pnpmLock from './bootstrap/pnpm-lock.json'
 const BOOTSTRAP_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
 
 export async function runSelfInstaller(inputs: Inputs): Promise<number> {
-  const { version, dest, packageJsonFile, standalone } = inputs
-  const { GITHUB_WORKSPACE } = process.env
+  const { version, dest, packageJsonFile } = inputs
 
-  // Step 1: Install bootstrap pnpm via npm (integrity verified by committed lockfile)
-  const bootstrapDir = path.join(dest, '..', '.pnpm-bootstrap')
-  await rm(bootstrapDir, { recursive: true, force: true })
-  await mkdir(bootstrapDir, { recursive: true })
+  // Install bootstrap pnpm via npm (integrity verified by committed lockfile)
+  await rm(dest, { recursive: true, force: true })
+  await mkdir(dest, { recursive: true })
 
-  await writeFile(path.join(bootstrapDir, 'package.json'), BOOTSTRAP_PACKAGE_JSON)
-  await writeFile(path.join(bootstrapDir, 'package-lock.json'), JSON.stringify(pnpmLock))
+  await writeFile(path.join(dest, 'package.json'), BOOTSTRAP_PACKAGE_JSON)
+  await writeFile(path.join(dest, 'package-lock.json'), JSON.stringify(pnpmLock))
 
-  const npmExitCode = await runCommand('npm', ['ci', '--ignore-scripts'], { cwd: bootstrapDir })
+  const npmExitCode = await runCommand('npm', ['ci', '--ignore-scripts'], { cwd: dest })
   if (npmExitCode !== 0) {
     return npmExitCode
   }
 
-  const bootstrapPnpm = path.join(bootstrapDir, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
+  const pnpmHome = path.join(dest, 'node_modules', '.bin')
+  addPath(pnpmHome)
+  exportVariable('PNPM_HOME', pnpmHome)
 
-  // Step 2: Use bootstrap pnpm to install the target version (verified via project's pnpm-lock.yaml)
-  await rm(dest, { recursive: true, force: true })
-  await mkdir(dest, { recursive: true })
-  const pkgJson = path.join(dest, 'package.json')
-  await writeFile(pkgJson, JSON.stringify({ private: true }))
+  const bootstrapPnpm = path.join(dest, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
 
-  // copy .npmrc if it exists to install from custom registry
-  if (GITHUB_WORKSPACE) {
-    try {
-      await copyFile(path.join(GITHUB_WORKSPACE, '.npmrc'), path.join(dest, '.npmrc'))
-    } catch (error) {
-      // Swallow error if .npmrc doesn't exist
-      if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
+  // Determine the target version
+  const targetVersion = readTargetVersion({ version, packageJsonFile })
+
+  if (targetVersion) {
+    // Explicit version specified (via action input or packageManager field)
+    const exitCode = await runCommand(process.execPath, [bootstrapPnpm, 'self-update', targetVersion], { cwd: dest })
+    if (exitCode !== 0) {
+      return exitCode
     }
   }
 
-  // prepare target pnpm
-  const target = await readTarget({ version, packageJsonFile, standalone })
-  const installArgs = [bootstrapPnpm, 'install', target, '--no-lockfile']
-  const exitCode = await runCommand(process.execPath, installArgs, { cwd: dest })
-  if (exitCode === 0) {
-    const pnpmHome = path.join(dest, 'node_modules/.bin')
-    addPath(pnpmHome)
-    exportVariable('PNPM_HOME', pnpmHome)
-
-    // Clean up bootstrap directory
-    await rm(bootstrapDir, { recursive: true, force: true }).catch(() => {})
-  }
-  return exitCode
+  return 0
 }
 
-function runCommand(cmd: string, args: string[], opts: { cwd: string }): Promise<number> {
-  return new Promise<number>((resolve, reject) => {
-    const cp = spawn(cmd, args, {
-      cwd: opts.cwd,
-      stdio: ['pipe', 'inherit', 'inherit'],
-      shell: process.platform === 'win32',
-    })
-    cp.on('error', reject)
-    cp.on('close', resolve)
-  })
-}
-
-async function readTarget(opts: {
+function readTargetVersion(opts: {
   readonly version?: string | undefined
   readonly packageJsonFile: string
-  readonly standalone: boolean
-}) {
-  const { version, packageJsonFile, standalone } = opts
+}): string | undefined {
+  const { version, packageJsonFile } = opts
   const { GITHUB_WORKSPACE } = process.env
 
-  let packageManager
+  let packageManager: unknown
 
   if (GITHUB_WORKSPACE) {
     try {
@@ -107,7 +79,12 @@ async function readTarget(opts: {
 Remove one of these versions to avoid version mismatch errors like ERR_PNPM_BAD_PM_VERSION`)
     }
 
-    return `${ standalone ? '@pnpm/exe' : 'pnpm' }@${version}`
+    return version
+  }
+
+  if (typeof packageManager === 'string' && packageManager.startsWith('pnpm@')) {
+    // pnpm will handle version management via packageManager field
+    return undefined
   }
 
   if (!GITHUB_WORKSPACE) {
@@ -117,22 +94,22 @@ please run the actions/checkout before pnpm/action-setup.
 Otherwise, please specify the pnpm version in the action configuration.`)
   }
 
-  if (typeof packageManager !== 'string') {
-    throw new Error(`No pnpm version is specified.
+  throw new Error(`No pnpm version is specified.
 Please specify it by one of the following ways:
   - in the GitHub Action config with the key "version"
   - in the package.json with the key "packageManager"`)
-  }
+}
 
-  if (!packageManager.startsWith('pnpm@')) {
-    throw new Error('Invalid packageManager field in package.json')
-  }
-
-  if (standalone) {
-    return packageManager.replace('pnpm@', '@pnpm/exe@')
-  }
-
-  return packageManager
+function runCommand(cmd: string, args: string[], opts: { cwd: string }): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const cp = spawn(cmd, args, {
+      cwd: opts.cwd,
+      stdio: ['pipe', 'inherit', 'inherit'],
+      shell: process.platform === 'win32',
+    })
+    cp.on('error', reject)
+    cp.on('close', resolve)
+  })
 }
 
 export default runSelfInstaller

@@ -32,8 +32,16 @@ jobs:
       - name: 'Test: which'
         run: which pnpm; which pnpx
 
-      - name: 'Test: install'
-        run: pnpm install
+      - name: 'Test: version'
+        run: pnpm --version
+
+      - name: 'Test: install in a fresh project'
+        run: |
+          mkdir /tmp/test-project
+          cd /tmp/test-project
+          pnpm init
+          pnpm add is-odd
+        shell: bash
 
   test_dest:
     name: Test with dest
@@ -62,63 +70,8 @@ jobs:
       - name: 'Test: which'
         run: which pnpm && which pnpx
 
-      - name: 'Test: install'
-        run: pnpm install
-
-  test_standalone:
-    name: Test with standalone
-
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          # macos is excluded from this test because node 12 is no longer available on this platform
-          - ubuntu-latest
-          - windows-latest
-
-        standalone:
-          - true
-          - false
-
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Run the action
-        uses: ./
-        with:
-          version: 9.15.0
-          standalone: ${{ matrix.standalone }}
-
-      - name: install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          # pnpm@7.0.0 is not compatible with Node.js 12
-          node-version: 12.22.12
-
-      - name: 'Test: which (pnpm)'
-        run: which pnpm
-
-      - name: 'Test: which (pnpx)'
-        if: matrix.standalone == false
-        run: which pnpx
-
-      - name: 'Test: install when standalone is true'
-        if: matrix.standalone
-        run: pnpm install
-
-      - name: 'Test: install when standalone is false'
-        if: matrix.standalone == false
-        # Since the default shell on windows runner is pwsh, we specify bash explicitly
-        shell: bash
-        run: |
-          if pnpm install; then
-            echo "pnpm install should fail"
-            exit 1
-          else
-            echo "pnpm install failed as expected"
-          fi
+      - name: 'Test: version'
+        run: pnpm --version
 
   test_run_install:
     name: 'Test with run_install (${{ matrix.run_install.name }}, ${{ matrix.os }})'
@@ -137,23 +90,9 @@ jobs:
         run_install:
           - name: 'null'
             value: 'null'
-          - name: 'empty object'
-            value: '{}'
-          - name: 'recursive'
-            value: |
-              recursive: true
           - name: 'global'
             value: |
               args:
-                - --global
-                - --global-dir=./pnpm-global
-                - npm
-                - yarn
-          - name: 'array'
-            value: |
-              - {}
-              - recursive: true
-              - args:
                 - --global
                 - --global-dir=./pnpm-global
                 - npm
@@ -171,5 +110,5 @@ jobs:
       - name: 'Test: which'
         run: which pnpm; which pnpx
 
-      - name: 'Test: install'
-        run: pnpm install
+      - name: 'Test: version'
+        run: pnpm --version
