@@ -70,19 +70,26 @@ function readTargetVersion(opts: {
   const { version, packageJsonFile } = opts
   const { GITHUB_WORKSPACE } = process.env
 
-  let packageManager: unknown
+  let packageManager: string | undefined
+  let devEngines: { packageManager?: { name?: string; version?: string } } | undefined
 
   if (GITHUB_WORKSPACE) {
     try {
       const content = readFileSync(path.join(GITHUB_WORKSPACE, packageJsonFile), 'utf8');
-      ({ packageManager } = packageJsonFile.endsWith(".yaml")
+      const manifest = packageJsonFile.endsWith(".yaml")
         ? parseYaml(content, { merge: true })
         : JSON.parse(content)
-      )
+      packageManager = manifest.packageManager
+      devEngines = manifest.devEngines
     } catch (error: unknown) {
       // Swallow error if package.json doesn't exist in root
       if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
     }
+  }
+
+  // If packageManager field is not set, try devEngines.packageManager
+  if (typeof packageManager !== 'string' && devEngines?.packageManager?.name === 'pnpm' && devEngines.packageManager.version) {
+    packageManager = `pnpm@${devEngines.packageManager.version}`
   }
 
   if (version) {
@@ -115,7 +122,8 @@ Otherwise, please specify the pnpm version in the action configuration.`)
   throw new Error(`No pnpm version is specified.
 Please specify it by one of the following ways:
   - in the GitHub Action config with the key "version"
-  - in the package.json with the key "packageManager"`)
+  - in the package.json with the key "packageManager"
+  - in the package.json with the key "devEngines.packageManager"`)
 }
 
 function runCommand(cmd: string, args: string[], opts: { cwd: string }): Promise<number> {
