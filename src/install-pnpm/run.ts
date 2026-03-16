@@ -47,12 +47,7 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
 
   // prepare target pnpm
   const target = await readTarget({ version, packageJsonFile, standalone })
-  const installArgs = ['install', target]
-  if (GITHUB_WORKSPACE) {
-    installArgs.push('--lockfile-dir', GITHUB_WORKSPACE)
-  } else {
-    installArgs.push('--no-lockfile')
-  }
+  const installArgs = ['install', target, '--no-lockfile']
   const exitCode = await runCommand(bootstrapPnpm, installArgs, { cwd: dest })
   if (exitCode === 0) {
     const pnpmHome = path.join(dest, 'node_modules/.bin')
