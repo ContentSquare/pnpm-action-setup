@@ -1,6 +1,5 @@
 {
   "private": true,
-  "packageManager": "pnpm@10.32.1",
   "scripts": {
     "build:bundle": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --minify --outfile=dist/index.js --loader:.json=json",
     "build": "pnpm run build:bundle",

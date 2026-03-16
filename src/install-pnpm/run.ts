@@ -74,6 +74,7 @@ function runCommand(cmd: string, args: string[], opts: { cwd: string }): Promise
     const cp = spawn(cmd, args, {
       cwd: opts.cwd,
       stdio: ['pipe', 'inherit', 'inherit'],
+      shell: process.platform === 'win32',
     })
     cp.on('error', reject)
     cp.on('close', resolve)
