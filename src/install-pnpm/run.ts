@@ -1,7 +1,7 @@
 import { addPath, exportVariable } from '@actions/core'
 import { spawn } from 'child_process'
-import { rm, writeFile, mkdir } from 'fs/promises'
-import { readFileSync } from 'fs'
+import { rm, writeFile, mkdir, symlink } from 'fs/promises'
+import { readFileSync, existsSync } from 'fs'
 import path from 'path'
 import util from 'util'
 import { Inputs } from '../inputs'
@@ -30,22 +30,17 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   }
 
   const pnpmHome = path.join(dest, 'node_modules', '.bin')
-  console.log(`Adding to PATH: ${pnpmHome}`)
   addPath(pnpmHome)
   exportVariable('PNPM_HOME', pnpmHome)
 
-  // Debug: list .bin contents
-  const { readdirSync, lstatSync } = await import('fs')
-  try {
-    const bins = readdirSync(pnpmHome)
-    console.log(`.bin contents: ${bins.join(', ')}`)
-    for (const bin of bins) {
-      const binPath = path.join(pnpmHome, bin)
-      const stat = lstatSync(binPath)
-      console.log(`  ${bin}: symlink=${stat.isSymbolicLink()}, mode=${stat.mode.toString(8)}`)
-    }
-  } catch (e) {
-    console.log(`Failed to list .bin: ${e}`)
+  // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
+  const pnpmBinLink = path.join(pnpmHome, 'pnpm')
+  if (!existsSync(pnpmBinLink)) {
+    await mkdir(pnpmHome, { recursive: true })
+    const target = standalone
+      ? path.join('..', '@pnpm', 'exe', 'pnpm')
+      : path.join('..', 'pnpm', 'bin', 'pnpm.cjs')
+    await symlink(target, pnpmBinLink)
   }
 
   const bootstrapPnpm = standalone
