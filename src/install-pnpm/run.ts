@@ -30,8 +30,23 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   }
 
   const pnpmHome = path.join(dest, 'node_modules', '.bin')
+  console.log(`Adding to PATH: ${pnpmHome}`)
   addPath(pnpmHome)
   exportVariable('PNPM_HOME', pnpmHome)
+
+  // Debug: list .bin contents
+  const { readdirSync, lstatSync } = await import('fs')
+  try {
+    const bins = readdirSync(pnpmHome)
+    console.log(`.bin contents: ${bins.join(', ')}`)
+    for (const bin of bins) {
+      const binPath = path.join(pnpmHome, bin)
+      const stat = lstatSync(binPath)
+      console.log(`  ${bin}: symlink=${stat.isSymbolicLink()}, mode=${stat.mode.toString(8)}`)
+    }
+  } catch (e) {
+    console.log(`Failed to list .bin: ${e}`)
+  }
 
   const bootstrapPnpm = standalone
     ? path.join(dest, 'node_modules', '@pnpm', 'exe', 'pnpm')
