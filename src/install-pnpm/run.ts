@@ -31,6 +31,7 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
 
   const pnpmHome = path.join(dest, 'node_modules', '.bin')
   addPath(pnpmHome)
+  addPath(path.join(pnpmHome, 'bin'))
   exportVariable('PNPM_HOME', pnpmHome)
 
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
