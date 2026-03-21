@@ -44,6 +44,7 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   if (exitCode === 0) {
     const pnpmHome = path.join(dest, 'node_modules/.bin')
     addPath(pnpmHome)
+    addPath(path.join(pnpmHome, 'bin'))
     exportVariable('PNPM_HOME', pnpmHome)
   }
   return exitCode
