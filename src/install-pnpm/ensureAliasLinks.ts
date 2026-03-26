@@ -1,4 +1,4 @@
-import { writeFile, symlink } from 'fs/promises'
+import { unlink, writeFile, symlink } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 
@@ -30,10 +30,18 @@ function pwshShim (target: string): string {
   return `#!/usr/bin/env pwsh\n& "$PSScriptRoot\\${target}" @args\n`
 }
 
+async function forceSymlink (target: string, linkPath: string): Promise<void> {
+  try { await unlink(linkPath) } catch {}
+  await symlink(target, linkPath)
+}
+
 /**
  * Create pn/pnpx/pnx alias links in the bin directory.
  * On Unix, creates symlinks. On Windows, creates .cmd and .ps1 shims.
  * Only creates links when the target file actually exists (pnpm v11+).
+ *
+ * Existing links are always replaced because npm may have created shims
+ * pointing to an isolated .tools/ copy that has stale placeholder files.
  */
 export async function ensureAliasLinks (binDir: string, standalone: boolean, platform: NodeJS.Platform = process.platform): Promise<void> {
   const aliases = getAliases(standalone)
@@ -44,19 +52,10 @@ export async function ensureAliasLinks (binDir: string, standalone: boolean, pla
     if (!existsSync(resolvedTarget)) continue
 
     if (isWindows) {
-      const cmdPath = path.join(binDir, `${name}.cmd`)
-      if (!existsSync(cmdPath)) {
-        await writeFile(cmdPath, cmdShim(target))
-      }
-      const ps1Path = path.join(binDir, `${name}.ps1`)
-      if (!existsSync(ps1Path)) {
-        await writeFile(ps1Path, pwshShim(target))
-      }
+      await writeFile(path.join(binDir, `${name}.cmd`), cmdShim(target))
+      await writeFile(path.join(binDir, `${name}.ps1`), pwshShim(target))
     } else {
-      const link = path.join(binDir, name)
-      if (!existsSync(link)) {
-        await symlink(target, link)
-      }
+      await forceSymlink(target, path.join(binDir, name))
     }
   }
 }

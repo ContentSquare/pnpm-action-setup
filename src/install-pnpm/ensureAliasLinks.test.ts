@@ -121,25 +121,27 @@ describe('ensureAliasLinks', () => {
     })
   })
 
-  describe('does not overwrite existing links', () => {
-    it('preserves existing symlinks on unix', async () => {
+  describe('overwrites existing broken links', () => {
+    it('replaces existing file with symlink on unix', async () => {
       await setupStandaloneFixture(binDir)
-      await writeFile(path.join(binDir, 'pn'), 'existing content')
+      // Simulate npm's broken shim (points to .tools/ placeholder)
+      await writeFile(path.join(binDir, 'pn'), '#!/bin/sh\nexec broken\n')
 
       await ensureAliasLinks(binDir, true, 'linux')
 
-      const content = await readFile(path.join(binDir, 'pn'), 'utf8')
-      expect(content).toBe('existing content')
+      // Should be replaced with a symlink to the real target
+      const target = await readlink(path.join(binDir, 'pn'))
+      expect(target).toBe(path.join('..', '@pnpm', 'exe', 'pn'))
     })
 
-    it('preserves existing .cmd shims on windows', async () => {
+    it('replaces existing .cmd shims on windows', async () => {
       await setupStandaloneFixture(binDir)
-      await writeFile(path.join(binDir, 'pn.cmd'), 'existing shim')
+      await writeFile(path.join(binDir, 'pn.cmd'), 'broken shim')
 
       await ensureAliasLinks(binDir, true, 'win32')
 
       const content = await readFile(path.join(binDir, 'pn.cmd'), 'utf8')
-      expect(content).toBe('existing shim')
+      expect(content).toContain(path.join('..', '@pnpm', 'exe', 'pn'))
     })
   })
 })
