@@ -12,16 +12,14 @@ async function createTempDir (): Promise<string> {
 async function setupStandaloneFixture (binDir: string): Promise<void> {
   const exeDir = path.join(binDir, '..', '@pnpm', 'exe')
   await mkdir(exeDir, { recursive: true })
-  await writeFile(path.join(exeDir, 'pn'), '#!/bin/sh\necho pn\n', { mode: 0o755 })
-  await writeFile(path.join(exeDir, 'pnpx'), '#!/bin/sh\necho pnpx\n', { mode: 0o755 })
-  await writeFile(path.join(exeDir, 'pnx'), '#!/bin/sh\necho pnx\n', { mode: 0o755 })
+  // Only the pnpm binary exists — pn/pnpx/pnx may not exist after self-update
+  await writeFile(path.join(exeDir, 'pnpm'), '#!/bin/sh\necho pnpm\n', { mode: 0o755 })
 }
 
 async function setupNonStandaloneFixture (binDir: string): Promise<void> {
   const pnpmBinDir = path.join(binDir, '..', 'pnpm', 'bin')
   await mkdir(pnpmBinDir, { recursive: true })
   await writeFile(path.join(pnpmBinDir, 'pnpm.cjs'), 'console.log("pnpm")\n')
-  await writeFile(path.join(pnpmBinDir, 'pnpx.cjs'), 'console.log("pnpx")\n')
 }
 
 describe('ensureAliasLinks', () => {
@@ -34,78 +32,85 @@ describe('ensureAliasLinks', () => {
   })
 
   describe('standalone mode', () => {
-    it('creates symlinks on unix when targets exist', async () => {
+    it('creates pn as symlink to pnpm binary on unix', async () => {
       await setupStandaloneFixture(binDir)
 
       await ensureAliasLinks(binDir, true, 'linux')
 
-      expect(existsSync(path.join(binDir, 'pn'))).toBe(true)
-      expect(existsSync(path.join(binDir, 'pnpx'))).toBe(true)
-      expect(existsSync(path.join(binDir, 'pnx'))).toBe(true)
-
       const pnTarget = await readlink(path.join(binDir, 'pn'))
-      expect(pnTarget).toBe(path.join('..', '@pnpm', 'exe', 'pn'))
+      expect(pnTarget).toBe(path.join('..', '@pnpm', 'exe', 'pnpm'))
     })
 
-    it('creates .cmd and .ps1 shims on windows when targets exist', async () => {
+    it('creates pnpx and pnx as shell scripts calling pnpm dlx on unix', async () => {
+      await setupStandaloneFixture(binDir)
+
+      await ensureAliasLinks(binDir, true, 'linux')
+
+      for (const name of ['pnpx', 'pnx']) {
+        const content = await readFile(path.join(binDir, name), 'utf8')
+        expect(content).toContain('pnpm')
+        expect(content).toContain('dlx')
+        expect(content).toContain('exec')
+      }
+    })
+
+    it('creates .cmd and .ps1 shims on windows', async () => {
       await setupStandaloneFixture(binDir)
 
       await ensureAliasLinks(binDir, true, 'win32')
 
-      // Should create .cmd shims, not extensionless symlinks
-      expect(existsSync(path.join(binDir, 'pn.cmd'))).toBe(true)
-      expect(existsSync(path.join(binDir, 'pnx.cmd'))).toBe(true)
-      expect(existsSync(path.join(binDir, 'pn.ps1'))).toBe(true)
-      expect(existsSync(path.join(binDir, 'pnx.ps1'))).toBe(true)
+      // pn shims
+      const pnCmd = await readFile(path.join(binDir, 'pn.cmd'), 'utf8')
+      expect(pnCmd).toContain('pnpm')
+      expect(pnCmd).toContain('%*')
+      expect(pnCmd).not.toContain('dlx')
 
-      // Should not create extensionless symlinks on windows
+      const pnPs1 = await readFile(path.join(binDir, 'pn.ps1'), 'utf8')
+      expect(pnPs1).toContain('pnpm')
+      expect(pnPs1).toContain('@args')
+
+      // pnpx/pnx shims call pnpm dlx
+      const pnpxCmd = await readFile(path.join(binDir, 'pnpx.cmd'), 'utf8')
+      expect(pnpxCmd).toContain('pnpm')
+      expect(pnpxCmd).toContain('dlx')
+
+      // Should not create extensionless files on windows
       expect(existsSync(path.join(binDir, 'pn'))).toBe(false)
-      expect(existsSync(path.join(binDir, 'pnx'))).toBe(false)
-
-      const cmdContent = await readFile(path.join(binDir, 'pn.cmd'), 'utf8')
-      expect(cmdContent).toContain(path.join('..', '@pnpm', 'exe', 'pn'))
-      expect(cmdContent).toContain('%*')
-
-      const ps1Content = await readFile(path.join(binDir, 'pn.ps1'), 'utf8')
-      expect(ps1Content).toContain(path.join('..', '@pnpm', 'exe', 'pn'))
-      expect(ps1Content).toContain('@args')
     })
   })
 
   describe('non-standalone mode', () => {
-    it('creates symlinks on unix when targets exist', async () => {
+    it('creates pn as symlink to pnpm.cjs on unix', async () => {
       await setupNonStandaloneFixture(binDir)
 
       await ensureAliasLinks(binDir, false, 'linux')
 
-      expect(existsSync(path.join(binDir, 'pn'))).toBe(true)
-      expect(existsSync(path.join(binDir, 'pnpx'))).toBe(true)
-      expect(existsSync(path.join(binDir, 'pnx'))).toBe(true)
-
       const pnTarget = await readlink(path.join(binDir, 'pn'))
       expect(pnTarget).toBe(path.join('..', 'pnpm', 'bin', 'pnpm.cjs'))
-
-      // pnx should point to pnpx.cjs (same as pnpx)
-      const pnxTarget = await readlink(path.join(binDir, 'pnx'))
-      expect(pnxTarget).toBe(path.join('..', 'pnpm', 'bin', 'pnpx.cjs'))
     })
 
-    it('creates .cmd shims on windows when targets exist', async () => {
+    it('creates pnpx/pnx scripts on unix', async () => {
+      await setupNonStandaloneFixture(binDir)
+
+      await ensureAliasLinks(binDir, false, 'linux')
+
+      const content = await readFile(path.join(binDir, 'pnpx'), 'utf8')
+      expect(content).toContain('pnpm.cjs')
+      expect(content).toContain('dlx')
+    })
+
+    it('creates .cmd shims on windows', async () => {
       await setupNonStandaloneFixture(binDir)
 
       await ensureAliasLinks(binDir, false, 'win32')
 
-      expect(existsSync(path.join(binDir, 'pn.cmd'))).toBe(true)
-
       const cmdContent = await readFile(path.join(binDir, 'pn.cmd'), 'utf8')
-      expect(cmdContent).toContain(path.join('..', 'pnpm', 'bin', 'pnpm.cjs'))
+      expect(cmdContent).toContain(path.join('pnpm', 'bin', 'pnpm.cjs'))
     })
   })
 
-  describe('skips when targets do not exist', () => {
-    it('creates no links when target directory is empty (v10)', async () => {
-      // Don't create any fixture files — simulates pnpm v10 without aliases
-
+  describe('skips when pnpm binary does not exist', () => {
+    it('creates no links on unix', async () => {
       await ensureAliasLinks(binDir, true, 'linux')
 
       expect(existsSync(path.join(binDir, 'pn'))).toBe(false)
@@ -113,25 +118,23 @@ describe('ensureAliasLinks', () => {
       expect(existsSync(path.join(binDir, 'pnx'))).toBe(false)
     })
 
-    it('creates no shims on windows when targets do not exist', async () => {
+    it('creates no shims on windows', async () => {
       await ensureAliasLinks(binDir, true, 'win32')
 
       expect(existsSync(path.join(binDir, 'pn.cmd'))).toBe(false)
-      expect(existsSync(path.join(binDir, 'pnx.cmd'))).toBe(false)
     })
   })
 
-  describe('overwrites existing broken links', () => {
-    it('replaces existing file with symlink on unix', async () => {
+  describe('overwrites existing broken shims', () => {
+    it('replaces npm broken shim with symlink on unix', async () => {
       await setupStandaloneFixture(binDir)
-      // Simulate npm's broken shim (points to .tools/ placeholder)
-      await writeFile(path.join(binDir, 'pn'), '#!/bin/sh\nexec broken\n')
+      // Simulate npm's broken shim pointing to .tools/ placeholder
+      await writeFile(path.join(binDir, 'pn'), '#!/bin/sh\nexec .tools/broken "$@"\n')
 
       await ensureAliasLinks(binDir, true, 'linux')
 
-      // Should be replaced with a symlink to the real target
       const target = await readlink(path.join(binDir, 'pn'))
-      expect(target).toBe(path.join('..', '@pnpm', 'exe', 'pn'))
+      expect(target).toBe(path.join('..', '@pnpm', 'exe', 'pnpm'))
     })
 
     it('replaces existing .cmd shims on windows', async () => {
@@ -141,7 +144,7 @@ describe('ensureAliasLinks', () => {
       await ensureAliasLinks(binDir, true, 'win32')
 
       const content = await readFile(path.join(binDir, 'pn.cmd'), 'utf8')
-      expect(content).toContain(path.join('..', '@pnpm', 'exe', 'pn'))
+      expect(content).toContain('pnpm')
     })
   })
 })
