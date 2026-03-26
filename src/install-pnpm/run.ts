@@ -8,6 +8,7 @@ import { Inputs } from '../inputs'
 import { parse as parseYaml } from 'yaml'
 import pnpmLock from './bootstrap/pnpm-lock.json'
 import exeLock from './bootstrap/exe-lock.json'
+import { ensureAliasLinks } from './ensureAliasLinks'
 
 const BOOTSTRAP_PNPM_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
 const BOOTSTRAP_EXE_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { '@pnpm/exe': exeLock.packages['node_modules/@pnpm/exe'].version } })
@@ -120,19 +121,6 @@ Otherwise, please specify the pnpm version in the action configuration.`)
 Please specify it by one of the following ways:
   - in the GitHub Action config with the key "version"
   - in the package.json with the key "packageManager"`)
-}
-
-async function ensureAliasLinks(pnpmHome: string, standalone: boolean): Promise<void> {
-  const aliases = standalone
-    ? { pn: path.join('..', '@pnpm', 'exe', 'pn'), pnpx: path.join('..', '@pnpm', 'exe', 'pnpx'), pnx: path.join('..', '@pnpm', 'exe', 'pnx') }
-    : { pn: path.join('..', 'pnpm', 'bin', 'pnpm.cjs'), pnpx: path.join('..', 'pnpm', 'bin', 'pnpx.cjs'), pnx: path.join('..', 'pnpm', 'bin', 'pnpx.cjs') }
-  for (const [name, target] of Object.entries(aliases)) {
-    const link = path.join(pnpmHome, name)
-    const resolvedTarget = path.resolve(pnpmHome, target)
-    if (!existsSync(link) && existsSync(resolvedTarget)) {
-      await symlink(target, link)
-    }
-  }
 }
 
 function runCommand(cmd: string, args: string[], opts: { cwd: string }): Promise<number> {
