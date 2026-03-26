@@ -62,8 +62,14 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   }
 
   // Create pn/pnx alias bin links if the installed version supports them
-  // (pnpm v11+ adds pn and pnx as short aliases)
+  // (pnpm v11+ adds pn and pnx as short aliases).
+  // self-update links bins to $PNPM_HOME/bin/ which is also on PATH,
+  // so we must create aliases in both directories.
   await ensureAliasLinks(pnpmHome, standalone)
+  const pnpmBinDir = path.join(pnpmHome, 'bin')
+  if (existsSync(pnpmBinDir)) {
+    await ensureAliasLinks(pnpmBinDir, standalone)
+  }
 
   return 0
 }
