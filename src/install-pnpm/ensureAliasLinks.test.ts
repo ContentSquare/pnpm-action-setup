@@ -125,6 +125,31 @@ describe('ensureAliasLinks', () => {
     })
   })
 
+  describe('self-update bin directory (pnpm shim in same dir)', () => {
+    it('creates aliases using pnpm shim in the same directory on unix', async () => {
+      // self-update creates a pnpm shim in $PNPM_HOME/bin/ — no package dir
+      await writeFile(path.join(binDir, 'pnpm'), '#!/bin/sh\nexec /path/to/real/pnpm "$@"\n', { mode: 0o755 })
+
+      await ensureAliasLinks(binDir, true, 'linux')
+
+      const pnTarget = await readlink(path.join(binDir, 'pn'))
+      expect(pnTarget).toBe('pnpm')
+
+      const pnxContent = await readFile(path.join(binDir, 'pnx'), 'utf8')
+      expect(pnxContent).toContain('pnpm')
+      expect(pnxContent).toContain('dlx')
+    })
+
+    it('creates .cmd shims using pnpm in same dir on windows', async () => {
+      await writeFile(path.join(binDir, 'pnpm'), 'pnpm binary')
+
+      await ensureAliasLinks(binDir, true, 'win32')
+
+      const cmdContent = await readFile(path.join(binDir, 'pn.cmd'), 'utf8')
+      expect(cmdContent).toContain('pnpm')
+    })
+  })
+
   describe('overwrites existing broken shims', () => {
     it('replaces npm broken shim with symlink on unix', async () => {
       await setupStandaloneFixture(binDir)

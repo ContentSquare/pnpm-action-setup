@@ -25,6 +25,28 @@ async function forceWriteFile (filePath: string, content: string, mode?: number)
 }
 
 /**
+ * Find the pnpm binary/shim relative to binDir.
+ * Checks the package directory first (node_modules/.bin/../@pnpm/exe/pnpm),
+ * then falls back to a pnpm shim in binDir itself (e.g. self-update's bin/).
+ */
+function findPnpmTarget (binDir: string, standalone: boolean): string | undefined {
+  const packageTarget = standalone
+    ? path.join('..', '@pnpm', 'exe', 'pnpm')
+    : path.join('..', 'pnpm', 'bin', 'pnpm.cjs')
+
+  if (existsSync(path.resolve(binDir, packageTarget))) {
+    return packageTarget
+  }
+
+  // self-update creates a pnpm shim in $PNPM_HOME/bin/ — use it directly
+  if (existsSync(path.join(binDir, 'pnpm'))) {
+    return 'pnpm'
+  }
+
+  return undefined
+}
+
+/**
  * Create pn/pnpx/pnx alias links in the bin directory.
  *
  * pn is an alias for pnpm, so it symlinks (or shims) to the pnpm binary.
@@ -34,20 +56,12 @@ async function forceWriteFile (filePath: string, content: string, mode?: number)
  * pnpm self-update only replaces the pnpm binary — it doesn't update other
  * files in the package. The aliases are created by pointing pn directly to
  * the pnpm binary, and pnpx/pnx as scripts that exec "pnpm dlx".
- *
- * Only creates links when the pnpm binary exists in the expected location
- * (i.e. the package has been installed). This is always true after bootstrap.
  */
 export async function ensureAliasLinks (binDir: string, standalone: boolean, platform: NodeJS.Platform = process.platform): Promise<void> {
   const isWindows = platform === 'win32'
 
-  // Determine the pnpm binary path relative to binDir
-  const pnpmTarget = standalone
-    ? path.join('..', '@pnpm', 'exe', 'pnpm')
-    : path.join('..', 'pnpm', 'bin', 'pnpm.cjs')
-
-  const resolvedPnpm = path.resolve(binDir, pnpmTarget)
-  if (!existsSync(resolvedPnpm)) return
+  const pnpmTarget = findPnpmTarget(binDir, standalone)
+  if (!pnpmTarget) return
 
   if (isWindows) {
     // pn → calls pnpm directly
