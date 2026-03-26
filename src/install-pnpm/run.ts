@@ -60,6 +60,10 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
     }
   }
 
+  // Create pn/pnx alias symlinks if the installed version supports them
+  // (pnpm v11+ adds pn and pnx as short aliases)
+  await ensureAliasLinks(pnpmHome, standalone)
+
   return 0
 }
 
@@ -116,6 +120,19 @@ Otherwise, please specify the pnpm version in the action configuration.`)
 Please specify it by one of the following ways:
   - in the GitHub Action config with the key "version"
   - in the package.json with the key "packageManager"`)
+}
+
+async function ensureAliasLinks(pnpmHome: string, standalone: boolean): Promise<void> {
+  const aliases = standalone
+    ? { pn: path.join('..', '@pnpm', 'exe', 'pn'), pnpx: path.join('..', '@pnpm', 'exe', 'pnpx'), pnx: path.join('..', '@pnpm', 'exe', 'pnx') }
+    : { pn: path.join('..', 'pnpm', 'bin', 'pnpm.cjs'), pnpx: path.join('..', 'pnpm', 'bin', 'pnpx.cjs'), pnx: path.join('..', 'pnpm', 'bin', 'pnpx.cjs') }
+  for (const [name, target] of Object.entries(aliases)) {
+    const link = path.join(pnpmHome, name)
+    const resolvedTarget = path.resolve(pnpmHome, target)
+    if (!existsSync(link) && existsSync(resolvedTarget)) {
+      await symlink(target, link)
+    }
+  }
 }
 
 function runCommand(cmd: string, args: string[], opts: { cwd: string }): Promise<number> {
