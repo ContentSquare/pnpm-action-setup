@@ -59,9 +59,20 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
     if (exitCode !== 0) {
       return exitCode
     }
+
+    // self-update replaces package files but does not re-run preinstall
+    // scripts, so setup.js (which hardlinks pn/pnpx/pnx to the binary)
+    // needs to be run explicitly.
+    if (standalone) {
+      const exeDir = path.join(dest, 'node_modules', '@pnpm', 'exe')
+      const setupScript = path.join(exeDir, 'setup.js')
+      if (existsSync(setupScript)) {
+        await runCommand(process.execPath, [setupScript], { cwd: exeDir })
+      }
+    }
   }
 
-  // Create pn/pnx alias symlinks if the installed version supports them
+  // Create pn/pnx alias bin links if the installed version supports them
   // (pnpm v11+ adds pn and pnx as short aliases)
   await ensureAliasLinks(pnpmHome, standalone)
 
