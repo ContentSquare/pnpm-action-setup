@@ -40,11 +40,12 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   const pnpmHome = standalone && process.platform === 'win32'
     ? path.join(dest, 'node_modules', '@pnpm', 'exe')
     : path.join(dest, 'node_modules', '.bin')
+  // pnpm expects PNPM_HOME/bin in PATH for global binaries (e.g. node
+  // installed via `pnpm runtime`). Add it first so the next addPath
+  // (pnpmHome itself, which contains pnpm.exe) has higher precedence.
+  addPath(path.join(pnpmHome, 'bin'))
   addPath(pnpmHome)
   exportVariable('PNPM_HOME', pnpmHome)
-
-  // pnpm expects PNPM_HOME/bin in PATH for global binaries
-  addPath(path.join(pnpmHome, 'bin'))
 
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
   if (process.platform !== 'win32') {
