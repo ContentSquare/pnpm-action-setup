@@ -108,6 +108,56 @@ jobs:
           pnpm add is-odd
         shell: bash
 
+  test_dev_engines:
+    name: Test with devEngines.packageManager
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        version:
+          - '9.15.5'
+          - '>=9.15.0'
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up package.json with devEngines.packageManager
+        run: echo '{"devEngines":{"packageManager":{"name":"pnpm","version":"${{ matrix.version }}","onFail":"download"}}}' > package.json
+        shell: bash
+
+      - name: Run the action
+        uses: ./
+
+      - name: 'Test: which'
+        run: which pnpm; which pnpx
+
+      - name: 'Test: version'
+        run: |
+          set -e
+          required='${{ matrix.version }}'
+          actual="$(pnpm --version)"
+          echo "pnpm version: ${actual}"
+
+          if [ "${required}" = ">=9.15.0" ]; then
+            min="9.15.0"
+            if [ "$(printf '%s\n' "${min}" "${actual}" | sort -V | head -n1)" != "${min}" ]; then
+              echo "Expected pnpm version >= ${min}, but got ${actual}"
+              exit 1
+            fi
+          else
+            if [ "${actual}" != "${required}" ]; then
+              echo "Expected pnpm version ${required}, but got ${actual}"
+              exit 1
+            fi
+          fi
+        shell: bash
+
   test_run_install:
     name: 'Test with run_install (${{ matrix.run_install.name }}, ${{ matrix.os }})'
 
