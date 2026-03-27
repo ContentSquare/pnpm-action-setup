@@ -1,6 +1,6 @@
 import { addPath, exportVariable } from '@actions/core'
 import { spawn } from 'child_process'
-import { rm, writeFile, mkdir, symlink, link, copyFile } from 'fs/promises'
+import { rm, writeFile, mkdir, symlink } from 'fs/promises'
 import { readFileSync, existsSync } from 'fs'
 import path from 'path'
 import util from 'util'
@@ -34,33 +34,21 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
     return npmExitCode
   }
 
-  const pnpmHome = path.join(dest, 'node_modules', '.bin')
+  // On Windows with standalone mode, npm's .bin shims can't properly
+  // execute the extensionless @pnpm/exe native binaries. Add the
+  // @pnpm/exe directory directly to PATH so pnpm.exe is found natively.
+  const pnpmHome = standalone && process.platform === 'win32'
+    ? path.join(dest, 'node_modules', '@pnpm', 'exe')
+    : path.join(dest, 'node_modules', '.bin')
   addPath(pnpmHome)
-  addPath(path.join(pnpmHome, 'bin'))
   exportVariable('PNPM_HOME', pnpmHome)
-
-  // On Windows, npm creates .cmd wrappers that invoke bin entries through
-  // `node`, but @pnpm/exe bins are native executables — not JavaScript.
-  // Place pnpm.exe directly in .bin/ so that PATHEXT resolution finds the
-  // .exe before the broken .cmd wrapper.
-  if (process.platform === 'win32' && standalone) {
-    const exeDir = path.join(dest, 'node_modules', '@pnpm', 'exe')
-    for (const name of ['pnpm', 'pnpx']) {
-      const exe = path.join(exeDir, `${name}.exe`)
-      const cmd = path.join(exeDir, `${name}.cmd`)
-      if (existsSync(exe)) {
-        await copyFile(exe, path.join(pnpmHome, `${name}.exe`))
-      } else if (existsSync(cmd)) {
-        await copyFile(cmd, path.join(pnpmHome, `${name}.cmd`))
-      }
-    }
-  }
 
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
   if (process.platform !== 'win32') {
-    const pnpmBinLink = path.join(pnpmHome, 'pnpm')
+    addPath(path.join(pnpmHome, 'bin'))
+    const pnpmBinLink = path.join(dest, 'node_modules', '.bin', 'pnpm')
     if (!existsSync(pnpmBinLink)) {
-      await mkdir(pnpmHome, { recursive: true })
+      await mkdir(path.join(dest, 'node_modules', '.bin'), { recursive: true })
       const target = standalone
         ? path.join('..', '@pnpm', 'exe', 'pnpm')
         : path.join('..', 'pnpm', 'bin', 'pnpm.mjs')
