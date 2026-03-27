@@ -1,5 +1,5 @@
 import { addPath, exportVariable } from '@actions/core'
-import { spawn, spawnSync } from 'child_process'
+import { spawn } from 'child_process'
 import { rm, writeFile, mkdir, symlink } from 'fs/promises'
 import { readFileSync, existsSync } from 'fs'
 import path from 'path'
@@ -59,15 +59,6 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   const bootstrapPnpm = standalone
     ? path.join(dest, 'node_modules', '@pnpm', 'exe', process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
     : path.join(dest, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
-
-  // Verify pnpm is callable
-  console.log(`Verifying pnpm at: ${bootstrapPnpm}`)
-  console.log(`File exists: ${existsSync(bootstrapPnpm)}`)
-  const verify = spawnSync(bootstrapPnpm, ['--version'], { encoding: 'utf8', timeout: 15000 })
-  console.log(`pnpm --version stdout: ${JSON.stringify(verify.stdout)}`)
-  console.log(`pnpm --version stderr: ${JSON.stringify(verify.stderr)}`)
-  console.log(`pnpm --version status: ${verify.status}`)
-  if (verify.error) console.log(`pnpm --version error: ${verify.error}`)
 
   // Determine the target version
   const targetVersion = readTargetVersion({ version, packageJsonFile })
