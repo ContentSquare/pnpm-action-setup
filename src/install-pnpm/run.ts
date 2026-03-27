@@ -1,6 +1,6 @@
 import { addPath, exportVariable } from '@actions/core'
 import { spawn } from 'child_process'
-import { rm, writeFile, mkdir, symlink } from 'fs/promises'
+import { rm, writeFile, mkdir, symlink, link, copyFile } from 'fs/promises'
 import { readFileSync, existsSync } from 'fs'
 import path from 'path'
 import util from 'util'
@@ -41,49 +41,43 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
 
   // On Windows, npm creates .cmd wrappers that invoke bin entries through
   // `node`, but @pnpm/exe bins are native executables — not JavaScript.
-  // Overwrite the wrappers to invoke the binaries directly.
+  // Place pnpm.exe directly in .bin/ so that PATHEXT resolution finds the
+  // .exe before the broken .cmd wrapper.
   if (process.platform === 'win32' && standalone) {
+    const exeDir = path.join(dest, 'node_modules', '@pnpm', 'exe')
     for (const name of ['pnpm', 'pnpx']) {
-      await writeFile(
-        path.join(pnpmHome, `${name}.cmd`),
-        `@"%~dp0\\..\\@pnpm\\exe\\${name}" %*\r\n`,
-      )
+      const exe = path.join(exeDir, `${name}.exe`)
+      const cmd = path.join(exeDir, `${name}.cmd`)
+      if (existsSync(exe)) {
+        await copyFile(exe, path.join(pnpmHome, `${name}.exe`))
+      } else if (existsSync(cmd)) {
+        await copyFile(cmd, path.join(pnpmHome, `${name}.cmd`))
+      }
     }
   }
 
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
-  const pnpmBinLink = path.join(pnpmHome, 'pnpm')
-  if (!existsSync(pnpmBinLink)) {
-    await mkdir(pnpmHome, { recursive: true })
-    const target = standalone
-      ? path.join('..', '@pnpm', 'exe', 'pnpm')
-      : path.join('..', 'pnpm', 'bin', 'pnpm.mjs')
-    await symlink(target, pnpmBinLink)
+  if (process.platform !== 'win32') {
+    const pnpmBinLink = path.join(pnpmHome, 'pnpm')
+    if (!existsSync(pnpmBinLink)) {
+      await mkdir(pnpmHome, { recursive: true })
+      const target = standalone
+        ? path.join('..', '@pnpm', 'exe', 'pnpm')
+        : path.join('..', 'pnpm', 'bin', 'pnpm.mjs')
+      await symlink(target, pnpmBinLink)
+    }
   }
 
   const bootstrapPnpm = standalone
-    ? path.join(dest, 'node_modules', '@pnpm', 'exe', 'pnpm')
+    ? path.join(dest, 'node_modules', '@pnpm', 'exe', process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
     : path.join(dest, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
 
   // Determine the target version
   const targetVersion = readTargetVersion({ version, packageJsonFile })
 
   if (targetVersion) {
-    let cmd: string
-    let args: string[]
-    if (standalone) {
-      if (process.platform === 'win32') {
-        // Use the corrected .cmd wrapper on Windows
-        cmd = path.join(pnpmHome, 'pnpm.cmd')
-        args = ['self-update', targetVersion]
-      } else {
-        cmd = bootstrapPnpm
-        args = ['self-update', targetVersion]
-      }
-    } else {
-      cmd = process.execPath
-      args = [bootstrapPnpm, 'self-update', targetVersion]
-    }
+    const cmd = standalone ? bootstrapPnpm : process.execPath
+    const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
     const exitCode = await runCommand(cmd, args, { cwd: dest })
     if (exitCode !== 0) {
       return exitCode
