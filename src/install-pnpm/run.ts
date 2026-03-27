@@ -43,9 +43,11 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   addPath(pnpmHome)
   exportVariable('PNPM_HOME', pnpmHome)
 
+  // pnpm expects PNPM_HOME/bin in PATH for global binaries
+  addPath(path.join(pnpmHome, 'bin'))
+
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
   if (process.platform !== 'win32') {
-    addPath(path.join(pnpmHome, 'bin'))
     const pnpmBinLink = path.join(dest, 'node_modules', '.bin', 'pnpm')
     if (!existsSync(pnpmBinLink)) {
       await mkdir(path.join(dest, 'node_modules', '.bin'), { recursive: true })
