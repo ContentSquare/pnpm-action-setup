@@ -33,7 +33,14 @@ jobs:
         run: which pnpm; which pnpx
 
       - name: 'Test: version'
-        run: pnpm --version
+        run: |
+          actual="$(pnpm --version)"
+          echo "pnpm version: ${actual}"
+          if [[ ! "${actual}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "ERROR: pnpm --version did not produce valid output"
+            exit 1
+          fi
+        shell: bash
 
       - name: 'Test: install in a fresh project'
         run: |
@@ -71,7 +78,14 @@ jobs:
         run: which pnpm && which pnpx
 
       - name: 'Test: version'
-        run: pnpm --version
+        run: |
+          actual="$(pnpm --version)"
+          echo "pnpm version: ${actual}"
+          if [[ ! "${actual}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "ERROR: pnpm --version did not produce valid output"
+            exit 1
+          fi
+        shell: bash
 
   test_standalone:
     name: Test with standalone
@@ -98,7 +112,14 @@ jobs:
         run: which pnpm
 
       - name: 'Test: version'
-        run: pnpm --version
+        run: |
+          actual="$(pnpm --version)"
+          echo "pnpm version: ${actual}"
+          if [[ ! "${actual}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "ERROR: pnpm --version did not produce valid output"
+            exit 1
+          fi
+        shell: bash
 
       - name: 'Test: install in a fresh project'
         run: |
@@ -196,4 +217,11 @@ jobs:
         run: which pnpm; which pnpx
 
       - name: 'Test: version'
-        run: pnpm --version
+        run: |
+          actual="$(pnpm --version)"
+          echo "pnpm version: ${actual}"
+          if [[ ! "${actual}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "ERROR: pnpm --version did not produce valid output"
+            exit 1
+          fi
+        shell: bash
