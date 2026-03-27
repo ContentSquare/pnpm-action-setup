@@ -39,6 +39,18 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   addPath(path.join(pnpmHome, 'bin'))
   exportVariable('PNPM_HOME', pnpmHome)
 
+  // On Windows, npm creates .cmd wrappers that invoke bin entries through
+  // `node`, but @pnpm/exe bins are native executables — not JavaScript.
+  // Overwrite the wrappers to invoke the binaries directly.
+  if (process.platform === 'win32' && standalone) {
+    for (const name of ['pnpm', 'pnpx']) {
+      await writeFile(
+        path.join(pnpmHome, `${name}.cmd`),
+        `@"%~dp0\\..\\@pnpm\\exe\\${name}" %*\r\n`,
+      )
+    }
+  }
+
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
   const pnpmBinLink = path.join(pnpmHome, 'pnpm')
   if (!existsSync(pnpmBinLink)) {
@@ -57,8 +69,21 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   const targetVersion = readTargetVersion({ version, packageJsonFile })
 
   if (targetVersion) {
-    const cmd = standalone ? bootstrapPnpm : process.execPath
-    const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
+    let cmd: string
+    let args: string[]
+    if (standalone) {
+      if (process.platform === 'win32') {
+        // Use the corrected .cmd wrapper on Windows
+        cmd = path.join(pnpmHome, 'pnpm.cmd')
+        args = ['self-update', targetVersion]
+      } else {
+        cmd = bootstrapPnpm
+        args = ['self-update', targetVersion]
+      }
+    } else {
+      cmd = process.execPath
+      args = [bootstrapPnpm, 'self-update', targetVersion]
+    }
     const exitCode = await runCommand(cmd, args, { cwd: dest })
     if (exitCode !== 0) {
       return exitCode
