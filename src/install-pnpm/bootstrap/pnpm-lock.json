@@ -5,13 +5,13 @@
   "packages": {
     "": {
       "dependencies": {
-        "pnpm": "11.0.0-beta.4-1"
+        "pnpm": "11.0.0-rc.0"
       }
     },
     "node_modules/pnpm": {
-      "version": "11.0.0-beta.4-1",
-      "resolved": "https://registry.npmjs.org/pnpm/-/pnpm-11.0.0-beta.4-1.tgz",
-      "integrity": "sha512-zkZWSclaXz4NI43dkF0uYx8bGXjoy7T1KNPKjaGt1pQcJVD6foShIVum5dO47t5hpTvDNfPUGUGxXcM/RXRZRQ==",
+      "version": "11.0.0-rc.0",
+      "resolved": "https://registry.npmjs.org/pnpm/-/pnpm-11.0.0-rc.0.tgz",
+      "integrity": "sha512-Hwjq3uoCXpFEjebV3uQqbJR2QlcADAQ6nja4/xKEmnLry5xl/BiFCUdHJJ5S9T2Lc62hGBRGu6gYZoEMik0/bA==",
       "license": "MIT",
       "bin": {
         "pn": "bin/pnpm.mjs",
