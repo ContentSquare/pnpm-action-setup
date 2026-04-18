@@ -40,11 +40,13 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   const pnpmHome = standalone && process.platform === 'win32'
     ? path.join(dest, 'node_modules', '@pnpm', 'exe')
     : path.join(dest, 'node_modules', '.bin')
-  // pnpm expects PNPM_HOME/bin in PATH for global binaries (e.g. node
-  // installed via `pnpm runtime`). Add it first so the next addPath
-  // (pnpmHome itself, which contains pnpm.exe) has higher precedence.
-  addPath(path.join(pnpmHome, 'bin'))
+  // PNPM_HOME/bin is where `pnpm self-update` places the target version
+  // binary. It must have higher PATH precedence than pnpmHome (which
+  // contains the bootstrap binary) so the self-updated version is found
+  // first. The bootstrap pnpm is invoked via absolute path, not PATH,
+  // so this ordering does not affect the bootstrap step.
   addPath(pnpmHome)
+  addPath(path.join(pnpmHome, 'bin'))
   exportVariable('PNPM_HOME', pnpmHome)
 
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
