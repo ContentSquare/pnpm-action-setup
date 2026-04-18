@@ -129,6 +129,82 @@ jobs:
           pnpm add is-odd
         shell: bash
 
+  test_version_respects_request:
+    name: 'Test version input is actually installed (${{ matrix.version }}, ${{ matrix.os }})'
+    # Regression test for #225 / #230: the bootstrap pnpm on PATH was shadowing the self-updated binary,
+    # so a user requesting e.g. `version: 9.15.5` would silently get the bootstrap version.
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        version:
+          - '9.15.5'
+          - '10.33.0'
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Run the action
+        uses: ./
+        with:
+          version: ${{ matrix.version }}
+
+      - name: 'Test: exact version installed'
+        run: |
+          required='${{ matrix.version }}'
+          actual="$(pnpm --version)"
+          echo "pnpm version: ${actual}"
+          if [ "${actual}" != "${required}" ]; then
+            echo "Expected pnpm version ${required}, but got ${actual}"
+            exit 1
+          fi
+        shell: bash
+
+  test_package_manager_field:
+    name: 'Test packageManager field is respected (${{ matrix.version }}, ${{ matrix.os }})'
+    # Reproduces #227: when `packageManager` is set in package.json and no `version:` input is given,
+    # the action should install the version specified there.
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        version:
+          - '9.15.5'
+          - '10.33.0'
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up package.json with packageManager field
+        run: echo '{"packageManager":"pnpm@${{ matrix.version }}"}' > package.json
+        shell: bash
+
+      - name: Run the action
+        uses: ./
+
+      - name: 'Test: exact version installed'
+        run: |
+          required='${{ matrix.version }}'
+          actual="$(pnpm --version)"
+          echo "pnpm version: ${actual}"
+          if [ "${actual}" != "${required}" ]; then
+            echo "Expected pnpm version ${required}, but got ${actual}"
+            exit 1
+          fi
+        shell: bash
+
   test_dev_engines:
     name: Test with devEngines.packageManager
 
