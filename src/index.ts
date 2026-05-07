@@ -20,9 +20,10 @@ async function main() {
 async function runMain(inputs: Inputs) {
   saveState('is_post', 'true')
 
-  await installPnpm(inputs)
+  const binDest = await installPnpm(inputs)
+  if (binDest === undefined) return
   console.log('Installation Completed!')
-  setOutputs(inputs)
+  setOutputs(inputs, binDest)
 
   await restoreCache(inputs)
 

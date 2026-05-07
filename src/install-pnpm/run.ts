@@ -12,7 +12,12 @@ import exeLock from './bootstrap/exe-lock.json'
 const BOOTSTRAP_PNPM_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { pnpm: pnpmLock.packages['node_modules/pnpm'].version } })
 const BOOTSTRAP_EXE_PACKAGE_JSON = JSON.stringify({ private: true, dependencies: { '@pnpm/exe': exeLock.packages['node_modules/@pnpm/exe'].version } })
 
-export async function runSelfInstaller(inputs: Inputs): Promise<number> {
+export interface SelfInstallerResult {
+  exitCode: number
+  binDest: string
+}
+
+export async function runSelfInstaller(inputs: Inputs): Promise<SelfInstallerResult> {
   const { version, dest, packageJsonFile } = inputs
 
   // pnpm v11 requires Node >= 22.13; use standalone (exe) bootstrap which
@@ -45,7 +50,7 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
   const npmEnv = { ...process.env, [pathKey]: currentPath ? currentPath + path.delimiter + nodeDir : nodeDir }
   const npmExitCode = await runCommand('npm', ['ci'], { cwd: dest, env: npmEnv })
   if (npmExitCode !== 0) {
-    return npmExitCode
+    return { exitCode: npmExitCode, binDest: path.join(dest, 'node_modules', '.bin') }
   }
 
   // On Windows with standalone mode, npm's .bin shims can't properly
@@ -87,11 +92,18 @@ export async function runSelfInstaller(inputs: Inputs): Promise<number> {
     const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
     const exitCode = await runCommand(cmd, args, { cwd: dest })
     if (exitCode !== 0) {
-      return exitCode
+      return { exitCode, binDest: pnpmHome }
     }
+    // self-update writes the target pnpm/pnpx into PNPM_HOME/bin, leaving
+    // the bootstrap symlinks in pnpmHome pointing at the old version. Use
+    // PNPM_HOME/bin so consumers of the bin_dest output (e.g.
+    // `${steps.pnpm.outputs.bin_dest}/pnpm`) invoke the requested version.
+    return { exitCode: 0, binDest: path.join(pnpmHome, 'bin') }
   }
 
-  return 0
+  // No explicit target version: rely on the bootstrap pnpm to switch to
+  // the version declared in packageManager/devEngines at runtime.
+  return { exitCode: 0, binDest: pnpmHome }
 }
 
 function readTargetVersion(opts: {

@@ -166,6 +166,45 @@ jobs:
           fi
         shell: bash
 
+  test_bin_dest_output:
+    name: 'Test bin_dest output points to requested version (${{ matrix.version }}, ${{ matrix.os }})'
+    # Regression test for #247: invoking pnpm via the `bin_dest` output returned the
+    # bootstrap version because self-update writes the target to `${bin_dest}/bin/`,
+    # not directly into `${bin_dest}/`.
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        version:
+          - '9.15.5'
+          - '10.33.2'
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - id: pnpm
+        name: Run the action
+        uses: ./
+        with:
+          version: ${{ matrix.version }}
+
+      - name: 'Test: bin_dest/pnpm reports requested version'
+        run: |
+          required='${{ matrix.version }}'
+          actual="$(${{ steps.pnpm.outputs.bin_dest }}/pnpm --version)"
+          echo "pnpm version via bin_dest: ${actual}"
+          if [ "${actual}" != "${required}" ]; then
+            echo "Expected pnpm version ${required}, but got ${actual}"
+            exit 1
+          fi
+        shell: bash
+
   test_package_manager_field:
     name: 'Test packageManager field is respected (${{ matrix.version }}, ${{ matrix.os }})'
     # Reproduces #227: when `packageManager` is set in package.json and no `version:` input is given,
