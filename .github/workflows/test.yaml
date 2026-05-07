@@ -195,12 +195,16 @@ jobs:
           version: ${{ matrix.version }}
 
       - name: 'Test: bin_dest/pnpm reports requested version'
+        # Pass paths via env, not template interpolation, so Windows
+        # backslashes in `bin_dest` aren't eaten by bash's escape handling.
+        env:
+          BIN_DEST: ${{ steps.pnpm.outputs.bin_dest }}
+          REQUIRED: ${{ matrix.version }}
         run: |
-          required='${{ matrix.version }}'
-          actual="$(${{ steps.pnpm.outputs.bin_dest }}/pnpm --version)"
+          actual="$("$BIN_DEST/pnpm" --version)"
           echo "pnpm version via bin_dest: ${actual}"
-          if [ "${actual}" != "${required}" ]; then
-            echo "Expected pnpm version ${required}, but got ${actual}"
+          if [ "${actual}" != "${REQUIRED}" ]; then
+            echo "Expected pnpm version ${REQUIRED}, but got ${actual}"
             exit 1
           fi
         shell: bash
