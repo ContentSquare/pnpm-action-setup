@@ -110,13 +110,16 @@ jobs:
           - label: 'devEngines onFail=error, range (#252)'
             manifest: '{"devEngines":{"packageManager":{"name":"pnpm","version":">=9.15.0","onFail":"error"}}}'
             version: '>=9.15.0'
-          - label: 'devEngines onFail=error + explicit version mismatch keeps strictness'
+          - label: 'explicit version: pnpm_config_pm_on_fail not exported'
             # Regression guard for the af8e203 scope fix: when the user passes an
             # explicit `version:` input, the action must NOT export
-            # pnpm_config_pm_on_fail=download, so `onFail=error` still fires.
+            # pnpm_config_pm_on_fail=download, so the user's strict onFail policy
+            # is preserved. Asserted directly on the env var rather than pnpm
+            # runtime behavior — different pnpm majors read devEngines
+            # differently (v10 ignores it, v11+ honors it).
             manifest: '{"devEngines":{"packageManager":{"name":"pnpm","version":"9.15.5","onFail":"error"}}}'
             explicit_version: '10.33.0'
-            expect_pnpm_error: true
+            expect_pm_on_fail_unset: true
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -131,7 +134,7 @@ jobs:
           version: ${{ matrix.explicit_version }}
 
       - name: 'Test: pnpm reports the pinned version'
-        if: ${{ !matrix.expect_pnpm_error }}
+        if: ${{ !matrix.expect_pm_on_fail_unset }}
         env:
           REQUIRED: ${{ matrix.version }}
         run: |
@@ -152,17 +155,14 @@ jobs:
           fi
         shell: bash
 
-      - name: 'Test: pnpm exits non-zero (onFail=error strictness preserved)'
-        if: ${{ matrix.expect_pnpm_error }}
+      - name: 'Test: pnpm_config_pm_on_fail not exported (explicit version preserves strict policy)'
+        if: ${{ matrix.expect_pm_on_fail_unset }}
         run: |
-          set +e
-          out="$(pnpm --version 2>&1)"
-          rc=$?
-          echo "${out}"
-          if [ $rc -eq 0 ]; then
-            echo "Expected pnpm --version to fail (devEngines.onFail=error mismatch), but it exited 0"
+          if [ -n "${pnpm_config_pm_on_fail:-}" ]; then
+            echo "Expected pnpm_config_pm_on_fail to be unset, but got: '${pnpm_config_pm_on_fail}'"
             exit 1
           fi
+          echo "pnpm_config_pm_on_fail is unset, as expected"
         shell: bash
 
   standalone:
