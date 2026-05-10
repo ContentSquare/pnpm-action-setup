@@ -67,6 +67,11 @@ export async function runSelfInstaller(inputs: Inputs): Promise<SelfInstallerRes
   addPath(pnpmHome)
   addPath(path.join(pnpmHome, 'bin'))
   exportVariable('PNPM_HOME', pnpmHome)
+  // Force pnpm to honor manage-package-manager-versions even when the project
+  // pins `devEngines.packageManager.onFail = "error"`. Without this override
+  // the bootstrap pnpm errors with BAD_PM_VERSION instead of switching to the
+  // requested version on the user's first invocation (issue #252).
+  exportVariable('pnpm_config_pm_on_fail', 'download')
 
   // Ensure pnpm bin link exists — npm ci sometimes doesn't create it
   if (process.platform !== 'win32') {
