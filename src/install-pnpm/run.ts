@@ -102,7 +102,12 @@ export async function runSelfInstaller(inputs: Inputs): Promise<SelfInstallerRes
   }
 
   // No explicit target version: rely on the bootstrap pnpm to switch to
-  // the version declared in packageManager/devEngines at runtime.
+  // the version declared in packageManager/devEngines at runtime. Force
+  // `pmOnFail=download` so a project that pins
+  // `devEngines.packageManager.onFail = "error"` doesn't trip BAD_PM_VERSION
+  // before the switch can happen (issue #252). Scoped to this branch so users
+  // who pass an explicit `version:` input keep strict onFail behavior.
+  exportVariable('pnpm_config_pm_on_fail', 'download')
   return { exitCode: 0, binDest: pnpmHome }
 }
 
