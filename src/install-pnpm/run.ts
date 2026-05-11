@@ -100,10 +100,10 @@ export async function runSelfInstaller(inputs: Inputs): Promise<SelfInstallerRes
     // `${steps.pnpm.outputs.bin_dest}/pnpm`) invoke the requested version.
     //
     // When the requested version equals the bootstrap version, self-update
-    // is a no-op and PNPM_HOME/bin/pnpm is not created — fall back to
-    // pnpmHome, whose symlinks already point at the right version.
-    const updatedBin = path.join(pnpmHome, 'bin', process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
-    return { exitCode: 0, binDest: existsSync(updatedBin) ? path.join(pnpmHome, 'bin') : pnpmHome }
+    // is a no-op and PNPM_HOME/bin is not created — fall back to pnpmHome,
+    // whose symlinks already point at the right version.
+    const updatedBinDir = path.join(pnpmHome, 'bin')
+    return { exitCode: 0, binDest: existsSync(updatedBinDir) ? updatedBinDir : pnpmHome }
   }
 
   // No exact target version we can self-update to (devEngines pins a
