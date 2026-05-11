@@ -48,7 +48,7 @@ If `run_install` is a YAML string representation of either an object or an array
 
 ### `cache_dependency_path`
 
-**Optional** (_type:_ `string|string[]`, _default:_ `pnpm-lock.yaml`) File path to the pnpm lockfile, which contents hash will be used as a cache key.
+**Optional** (_type:_ `string`, _default:_ `pnpm-lock.yaml`) File path to the pnpm lockfile, whose contents hash will be used as a cache key. Accepts multiple paths delimited by newlines.
 
 ### `package_json_file`
 
@@ -157,6 +157,33 @@ jobs:
 ```
 
 **Note:** You don't need to run `pnpm store prune` at the end; post-action has already taken care of that.
+
+### Cache dependencies from multiple lockfiles
+
+```yaml
+on:
+  - push
+  - pull_request
+
+jobs:
+  cache-and-install-multiple:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+          cache: true
+          cache_dependency_path: |
+            one/pnpm-lock.yaml
+            two/pnpm-lock.yaml
+          run_install: |
+            - cwd: one
+            - cwd: two
+```
 
 ## Notes
 
