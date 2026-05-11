@@ -84,37 +84,31 @@ export async function runSelfInstaller(inputs: Inputs): Promise<SelfInstallerRes
     ? path.join(dest, 'node_modules', '@pnpm', 'exe', process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
     : path.join(dest, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
 
-  // Determine the target version
+  // Self-update the bootstrap to the requested pnpm version. readTargetVersion
+  // either returns a value or throws, so this always runs.
   const targetVersion = readTargetVersion({ version, packageJsonFile })
-
-  if (targetVersion) {
-    const cmd = standalone ? bootstrapPnpm : process.execPath
-    const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
-    const exitCode = await runCommand(cmd, args, { cwd: dest })
-    if (exitCode !== 0) {
-      return { exitCode, binDest: pnpmHome }
-    }
-    // self-update writes the target pnpm/pnpx into PNPM_HOME/bin, leaving
-    // the bootstrap symlinks in pnpmHome pointing at the old version. Use
-    // PNPM_HOME/bin so consumers of the bin_dest output (e.g.
-    // `${steps.pnpm.outputs.bin_dest}/pnpm`) invoke the requested version.
-    return { exitCode: 0, binDest: path.join(pnpmHome, 'bin') }
+  const cmd = standalone ? bootstrapPnpm : process.execPath
+  const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
+  const exitCode = await runCommand(cmd, args, { cwd: dest })
+  if (exitCode !== 0) {
+    return { exitCode, binDest: pnpmHome }
   }
-
-  // No explicit target version: rely on the bootstrap pnpm to switch to
-  // the version declared in packageManager/devEngines at runtime. Force
-  // `pmOnFail=download` so a project that pins
-  // `devEngines.packageManager.onFail = "error"` doesn't trip BAD_PM_VERSION
-  // before the switch can happen (issue #252). Scoped to this branch so users
-  // who pass an explicit `version:` input keep strict onFail behavior.
-  exportVariable('pnpm_config_pm_on_fail', 'download')
-  return { exitCode: 0, binDest: pnpmHome }
+  // self-update writes the target pnpm/pnpx into PNPM_HOME/bin, leaving
+  // the bootstrap symlinks in pnpmHome pointing at the old version. Use
+  // PNPM_HOME/bin so consumers of the bin_dest output (e.g.
+  // `${steps.pnpm.outputs.bin_dest}/pnpm`) invoke the requested version.
+  //
+  // When the requested version resolves to the bootstrap version, self-update
+  // is a no-op and PNPM_HOME/bin is not created — fall back to pnpmHome,
+  // whose symlinks already point at the right version.
+  const updatedBinDir = path.join(pnpmHome, 'bin')
+  return { exitCode: 0, binDest: existsSync(updatedBinDir) ? updatedBinDir : pnpmHome }
 }
 
 function readTargetVersion(opts: {
   readonly version?: string | undefined
   readonly packageJsonFile: string
-}): string | undefined {
+}): string {
   const { version, packageJsonFile } = opts
   const { GITHUB_WORKSPACE } = process.env
 
@@ -135,12 +129,15 @@ function readTargetVersion(opts: {
     }
   }
 
+  // packageManager is always exact `pnpm@<version>[+<integrity>]` per spec.
+  // Strip the integrity hash for self-update.
+  const packageManagerVersion =
+    typeof packageManager === 'string' && packageManager.startsWith('pnpm@')
+      ? packageManager.slice('pnpm@'.length).split('+')[0]
+      : undefined
+
   if (version) {
-    if (
-      typeof packageManager === 'string' &&
-      packageManager.startsWith('pnpm@') &&
-      packageManager.replace('pnpm@', '') !== version
-    ) {
+    if (packageManagerVersion && packageManagerVersion !== version) {
       throw new Error(`Multiple versions of pnpm specified:
   - version ${version} in the GitHub Action config with the key "version"
   - version ${packageManager} in the package.json with the key "packageManager"
@@ -150,13 +147,22 @@ Remove one of these versions to avoid version mismatch errors like ERR_PNPM_BAD_
     return version
   }
 
-  // pnpm will automatically download and switch to the right version
-  if (typeof packageManager === 'string' && packageManager.startsWith('pnpm@')) {
-    return undefined
+  // Self-update the bootstrap pnpm to the version pinned in package.json so
+  // PATH-resolved `pnpm` (and the bin_dest output) reflect the target
+  // version. Without this, `pnpm store path` runs as the bootstrap and
+  // reports a different STORE_VERSION than the one the user's actual
+  // install writes to — breaking cache: true and actions/setup-node's
+  // `cache: pnpm` on cold caches (issue #233).
+  //
+  // devEngines.packageManager takes priority over packageManager, matching
+  // pnpm's getWantedPackageManager logic. `pnpm self-update` accepts both
+  // exact versions and semver ranges, so we pass either through directly.
+  if (devEngines?.packageManager?.name === 'pnpm' && devEngines.packageManager.version) {
+    return devEngines.packageManager.version
   }
 
-  if (devEngines?.packageManager?.name === 'pnpm' && devEngines.packageManager.version) {
-    return undefined
+  if (packageManagerVersion) {
+    return packageManagerVersion
   }
 
   if (!GITHUB_WORKSPACE) {
