@@ -194,6 +194,54 @@ jobs:
           pnpm add is-odd
         shell: bash
 
+  standalone_windows_self_update:
+    # Regression guard for the patchPnpmEnv PATH-shadow bug. When
+    # standalone: true on Windows AND the requested pnpm differs from the
+    # bootstrap, the previous patchPnpmEnv prepended node_modules/.bin to
+    # PATH; that directory contains an npm-created pnpm.cmd shim pointing
+    # at the BOOTSTRAP pnpm, which shadowed the self-updated pnpm at
+    # $PNPM_HOME/bin and caused `pnpm install` inside the action to run
+    # under the bootstrap version. Exercising a newer-pnpm-only flag
+    # (`--no-runtime`, added in 11.1.0) makes the regression assertable:
+    # if the bootstrap (11.0.4) handles the install, it errors with
+    # "Unknown option: 'runtime'".
+    name: 'Standalone Windows self-update (PATH regression)'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up package.json with a minimal manifest
+        # run_install needs a manifest to install against. Removing the
+        # repo's existing pnpm-lock.yaml avoids frozen-lockfile mismatch.
+        run: |
+          rm -f pnpm-lock.yaml
+          echo '{"name":"sw","private":true,"packageManager":"pnpm@11.1.0"}' > package.json
+        shell: bash
+
+      - name: Run the action
+        uses: ./
+        with:
+          version: 11.1.0
+          standalone: true
+          run_install: |
+            args: ['--no-runtime']
+
+      - name: 'Test: pnpm install completed under the self-updated pnpm'
+        # If the bug recurs, the previous step's run_install will have failed
+        # the job with "Unknown option: 'runtime'", so reaching this step
+        # implies success. Still verify the version on PATH matches request.
+        env:
+          REQUIRED: '11.1.0'
+        run: |
+          set -e
+          actual="$(pnpm --version)"
+          echo "pnpm --version: ${actual}"
+          if [ "${actual}" != "${REQUIRED}" ]; then
+            echo "Expected pnpm ${REQUIRED}, got ${actual}"
+            exit 1
+          fi
+        shell: bash
+
   cache_store_path:
     # Regression guard for #233. When package.json pins a pnpm major that
     # differs from the bootstrap pnpm's major, the bootstrap reports its
