@@ -194,6 +194,52 @@ jobs:
           pnpm add is-odd
         shell: bash
 
+  cache_store_path:
+    # Regression guard for #233. When package.json pins a pnpm major that
+    # differs from the bootstrap pnpm's major, the bootstrap reports its
+    # own STORE_VERSION from `pnpm store path` (the `store` command skips
+    # pnpm's auto-switch). The user's actual `pnpm install` runs under the
+    # pinned version and writes to a different STORE_VERSION, so the post
+    # step's saveCache then fails with "Path Validation Error". The fix is
+    # to self-update the bootstrap to the pinned version up front.
+    name: 'Cache store path matches install (#233): ${{ matrix.label }}'
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: 'packageManager pnpm@10.33.0'
+            manifest: '{"packageManager":"pnpm@10.33.0","dependencies":{"is-odd":"3.0.1"}}'
+          - label: 'devEngines exact pnpm@10.33.0'
+            manifest: '{"devEngines":{"packageManager":{"name":"pnpm","version":"10.33.0"}},"dependencies":{"is-odd":"3.0.1"}}'
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up package.json
+        run: echo '${{ matrix.manifest }}' > package.json
+        shell: bash
+
+      - id: pnpm
+        uses: ./
+        with:
+          cache: true
+          run_install: |
+            - args: [--no-frozen-lockfile]
+
+      - name: 'Test: store path computed by the action exists on disk'
+        run: |
+          set -e
+          actual="$(pnpm store path --silent)"
+          echo "pnpm store path: ${actual}"
+          if [ ! -d "${actual}" ]; then
+            echo "Expected store path to exist on disk; cache save would fail"
+            exit 1
+          fi
+        shell: bash
+
   run_install:
     name: 'run_install (${{ matrix.run_install.name }})'
 
