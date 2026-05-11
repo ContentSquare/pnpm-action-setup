@@ -214,6 +214,8 @@ jobs:
             manifest: '{"packageManager":"pnpm@10.33.0","dependencies":{"is-odd":"3.0.1"}}'
           - label: 'devEngines exact pnpm@10.33.0'
             manifest: '{"devEngines":{"packageManager":{"name":"pnpm","version":"10.33.0"}},"dependencies":{"is-odd":"3.0.1"}}'
+          - label: 'devEngines range >=10 <11'
+            manifest: '{"devEngines":{"packageManager":{"name":"pnpm","version":">=10 <11"}},"dependencies":{"is-odd":"3.0.1"}}'
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1

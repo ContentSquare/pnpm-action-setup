@@ -84,43 +84,31 @@ export async function runSelfInstaller(inputs: Inputs): Promise<SelfInstallerRes
     ? path.join(dest, 'node_modules', '@pnpm', 'exe', process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
     : path.join(dest, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
 
-  // Determine the target version
+  // Self-update the bootstrap to the requested pnpm version. readTargetVersion
+  // either returns a value or throws, so this always runs.
   const targetVersion = readTargetVersion({ version, packageJsonFile })
-
-  if (targetVersion) {
-    const cmd = standalone ? bootstrapPnpm : process.execPath
-    const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
-    const exitCode = await runCommand(cmd, args, { cwd: dest })
-    if (exitCode !== 0) {
-      return { exitCode, binDest: pnpmHome }
-    }
-    // self-update writes the target pnpm/pnpx into PNPM_HOME/bin, leaving
-    // the bootstrap symlinks in pnpmHome pointing at the old version. Use
-    // PNPM_HOME/bin so consumers of the bin_dest output (e.g.
-    // `${steps.pnpm.outputs.bin_dest}/pnpm`) invoke the requested version.
-    //
-    // When the requested version equals the bootstrap version, self-update
-    // is a no-op and PNPM_HOME/bin is not created — fall back to pnpmHome,
-    // whose symlinks already point at the right version.
-    const updatedBinDir = path.join(pnpmHome, 'bin')
-    return { exitCode: 0, binDest: existsSync(updatedBinDir) ? updatedBinDir : pnpmHome }
+  const cmd = standalone ? bootstrapPnpm : process.execPath
+  const args = standalone ? ['self-update', targetVersion] : [bootstrapPnpm, 'self-update', targetVersion]
+  const exitCode = await runCommand(cmd, args, { cwd: dest })
+  if (exitCode !== 0) {
+    return { exitCode, binDest: pnpmHome }
   }
-
-  // No exact target version we can self-update to (devEngines pins a
-  // semver range, or nothing is pinned at all). Rely on the bootstrap
-  // pnpm to switch versions at runtime. Force `pmOnFail=download` so a
-  // project that pins `devEngines.packageManager.onFail = "error"` doesn't
-  // trip BAD_PM_VERSION before the switch can happen (issue #252). Scoped
-  // to this branch so users who pass an explicit `version:` input keep
-  // strict onFail behavior.
-  exportVariable('pnpm_config_pm_on_fail', 'download')
-  return { exitCode: 0, binDest: pnpmHome }
+  // self-update writes the target pnpm/pnpx into PNPM_HOME/bin, leaving
+  // the bootstrap symlinks in pnpmHome pointing at the old version. Use
+  // PNPM_HOME/bin so consumers of the bin_dest output (e.g.
+  // `${steps.pnpm.outputs.bin_dest}/pnpm`) invoke the requested version.
+  //
+  // When the requested version resolves to the bootstrap version, self-update
+  // is a no-op and PNPM_HOME/bin is not created — fall back to pnpmHome,
+  // whose symlinks already point at the right version.
+  const updatedBinDir = path.join(pnpmHome, 'bin')
+  return { exitCode: 0, binDest: existsSync(updatedBinDir) ? updatedBinDir : pnpmHome }
 }
 
 function readTargetVersion(opts: {
   readonly version?: string | undefined
   readonly packageJsonFile: string
-}): string | undefined {
+}): string {
   const { version, packageJsonFile } = opts
   const { GITHUB_WORKSPACE } = process.env
 
@@ -167,15 +155,10 @@ Remove one of these versions to avoid version mismatch errors like ERR_PNPM_BAD_
   // `cache: pnpm` on cold caches (issue #233).
   //
   // devEngines.packageManager takes priority over packageManager, matching
-  // pnpm's getWantedPackageManager logic. devEngines.packageManager.version
-  // can be a semver range; `pnpm self-update` needs a specific version, so
-  // for ranges we fall through to the bootstrap auto-switch path.
-  if (devEngines?.packageManager?.name === 'pnpm') {
-    const v = devEngines.packageManager.version
-    if (v != null && isExactSemver(v)) {
-      return v
-    }
-    return undefined
+  // pnpm's getWantedPackageManager logic. `pnpm self-update` accepts both
+  // exact versions and semver ranges, so we pass either through directly.
+  if (devEngines?.packageManager?.name === 'pnpm' && devEngines.packageManager.version) {
+    return devEngines.packageManager.version
   }
 
   if (packageManagerVersion) {
@@ -194,10 +177,6 @@ Please specify it by one of the following ways:
   - in the GitHub Action config with the key "version"
   - in the package.json with the key "packageManager"
   - in the package.json with the key "devEngines.packageManager"`)
-}
-
-function isExactSemver(v: string): boolean {
-  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(v)
 }
 
 function getSystemNodeVersion(): Promise<{ major: number; minor: number }> {
